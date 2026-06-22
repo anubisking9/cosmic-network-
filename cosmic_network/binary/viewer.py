@@ -6,7 +6,9 @@ Controls (interactive mode):
   ← / → or J/K   jump to previous/next restriction
   q               quit
 
-Run with --dump for a plain-text print of all 6 restrictions.
+Run with --dump    for a plain-text print of all 6 restrictions.
+Run with --machine for the state machine transition table + demo trace.
+Run with --graph   for a demo cosmic graph with propagation.
 """
 
 import curses
@@ -246,3 +248,80 @@ def run(dump: bool = False) -> None:
     except Exception as exc:
         print(f"[curses unavailable: {exc}] — falling back to dump mode.\n")
         dump_all()
+
+
+# ── machine dump ───────────────────────────────────────────────────────────
+
+def dump_machine() -> None:
+    from .machine import RestrictionMachine, transition_map, TRANSITIONS
+
+    print(transition_map())
+
+    # demo trace: a node goes NORMAL → RATE_LIMIT → SHADOW_BAN → REACH_THROTTLE
+    print("\n  ── DEMO TRACE ──────────────────────────────────────────────────")
+    m = RestrictionMachine("NORMAL")
+    for event in ["bucket_overflow", "limit_persists", "appeal_partial"]:
+        ok = m.trigger(event)
+        label = "✓" if ok else "✗ (no match)"
+        print(f"  fire '{event}'  {label}")
+    print()
+    print(m.trace())
+
+    # second demo: AGE_GATE → verify → NORMAL
+    print("\n  ── DEMO TRACE 2: AGE_GATE → KYC → NORMAL ───────────────────────")
+    m2 = RestrictionMachine("AGE_GATE")
+    m2.state = __import__(
+        "cosmic_network.binary.restrictions", fromlist=["AGE_GATE"]
+    ).AGE_GATE.state
+    m2.trigger("kyc_cleared")
+    print(m2.trace())
+
+
+# ── graph dump ─────────────────────────────────────────────────────────────
+
+def dump_graph() -> None:
+    from .node import CosmicNode
+    from .graph import CosmicGraph
+    from .restrictions import SHADOW_BAN, CONTENT_FILTER, RATE_LIMIT, REACH_THROTTLE
+    from .state import StateVector, FULL_ACCESS
+
+    # Build a 5-node demo graph
+    g = CosmicGraph()
+    for nid in ("alpha", "beta", "gamma", "delta", "epsilon"):
+        g.add(CosmicNode(nid))
+
+    # Connect: alpha → beta, beta → gamma, alpha → delta, delta → epsilon
+    g.connect("alpha", "beta")
+    g.connect("beta",  "gamma")
+    # delta → epsilon edge: SHARE and DISCOVER columns blocked
+    partial = [[1] * 8 for _ in range(8)]
+    partial[2] = [0] * 8   # SHARE row blocked on this edge
+    partial[4] = [0] * 8   # DISCOVER row blocked on this edge
+    g.connect("alpha", "delta")
+    g.connect("delta", "epsilon", partial)
+
+    print("  COSMIC GRAPH — INITIAL STATE")
+    print("  " + "─" * 50)
+    print(g.state_grid())
+    print()
+    print("  EDGES")
+    print(g.edge_list())
+
+    # apply shadow ban to alpha, propagate to beta
+    print("\n  ── APPLY SB-01 (SHADOW BAN) to alpha ───────────────────────────")
+    g.nodes["alpha"].apply(SHADOW_BAN)
+    affected = g.propagate(SHADOW_BAN, "alpha")
+    print(f"  alpha.apply(SHADOW_BAN)  affected via propagate: {affected}")
+    print()
+    print(g.state_grid())
+
+    # apply reach throttle to delta, propagate to epsilon through partial edge
+    print("\n  ── APPLY RT-06 (REACH THROTTLE) to delta ───────────────────────")
+    g.nodes["delta"].apply(REACH_THROTTLE)
+    affected2 = g.propagate(REACH_THROTTLE, "delta")
+    print(f"  delta.apply(REACH_THROTTLE)  affected via propagate: {affected2}")
+    print()
+    print(g.state_grid())
+    print()
+    print(f"  NETWORK CONSENSUS (AND all nodes):  {g.consensus().to_visual()}  0b{g.consensus().to_bits()}")
+    print(f"  NETWORK UNION     (OR  all nodes):  {g.union().to_visual()}  0b{g.union().to_bits()}")
