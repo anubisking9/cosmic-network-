@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ANR Cosmic Net</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #05000f;
+      --surface: #0c0020;
+      --border:  #2a0060;
+      --purple:  #9400ff;
+      --glow:    #bf40ff;
+      --dim:     #5a3080;
+      --text:    #e8d8ff;
+      --muted:   #7a5fa0;
+      --green:   #00ff88;
+      --red:     #ff3366;
+      --mono:    'Courier New', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── starfield ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 12% 18%, rgba(148,0,255,.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 38% 62%, rgba(148,0,255,.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 71% 33%, rgba(200,120,255,.6) 0%, transparent 100%),
+        radial-gradient(1px 1px at 85% 79%, rgba(148,0,255,.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 23% 91%, rgba(200,120,255,.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 57% 8%,  rgba(148,0,255,.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 94% 45%, rgba(200,120,255,.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 6%  55%, rgba(148,0,255,.6) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 60px 24px 100px;
+    }
+
+    /* ── header ── */
+    .sig {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 6vw, 3.6rem);
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--glow) 0%, var(--purple) 60%, #3300aa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+
+    .tagline {
+      font-size: 14px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      margin-bottom: 40px;
+    }
+
+    /* ── state vector banner ── */
+    .sv-banner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 40px;
+      font-size: 13px;
+    }
+
+    .sv-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .sv-label { color: var(--muted); width: 58px; flex-shrink: 0; }
+
+    .sv-bits {
+      display: flex;
+      gap: 6px;
+    }
+
+    .bit {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .bit.on  { background: rgba(148,0,255,.25); color: var(--glow); border: 1px solid var(--purple); }
+    .bit.off { background: rgba(255,255,255,.04); color: #333; border: 1px solid #1a0035; }
+
+    .sv-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-top: 14px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    /* ── tier grid ── */
+    .tiers {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    @media (max-width: 520px) { .tiers { grid-template-columns: 1fr; } }
+
+    .tier {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .tier.locked { opacity: .55; }
+
+    .tier-head {
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .tier.active .tier-head { color: var(--green); }
+
+    .module {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+
+    .module:last-child { border-bottom: none; }
+
+    .module-icon { font-size: 16px; width: 22px; text-align: center; }
+    .module-name { flex: 1; }
+
+    .badge-open   { font-size: 10px; color: var(--green); }
+    .badge-locked { font-size: 10px; color: var(--red); }
+
+    /* ── CTA ── */
+    .cta-wrap {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    #unlock-btn {
+      background: linear-gradient(135deg, var(--purple) 0%, #5500cc 100%);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 18px 48px;
+      transition: opacity .15s, transform .1s;
+      box-shadow: 0 0 32px rgba(148,0,255,.4);
+    }
+
+    #unlock-btn:hover   { opacity: .9; transform: translateY(-1px); }
+    #unlock-btn:active  { transform: translateY(0); }
+    #unlock-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .cta-sub {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #error-msg {
+      color: var(--red);
+      font-size: 12px;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* ── footer bits ── */
+    .footer-bits {
+      text-align: center;
+      font-size: 11px;
+      color: #2a0060;
+      letter-spacing: 1px;
+      margin-top: 60px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="sig">ANR · NODE-0x01 · RESTRICTED</p>
+    <h1>COSMIC NET</h1>
+    <p class="tagline">A Star Is A Node · APIs Are Colors · Binary Is The Language</p>
+
+    <!-- State vector: locked state -->
+    <div class="sv-banner">
+      <div class="sv-row">
+        <span class="sv-label">LOCKED</span>
+        <div class="sv-bits">
+          <div class="bit on"  title="READ">█</div>
+          <div class="bit on"  title="WRITE">█</div>
+          <div class="bit off" title="SHARE">░</div>
+          <div class="bit off" title="COMMENT">░</div>
+          <div class="bit off" title="DISCOVER">░</div>
+          <div class="bit off" title="NOTIFY">░</div>
+          <div class="bit off" title="MONETIZE">░</div>
+          <div class="bit off" title="LIVE">░</div>
+        </div>
+        <span style="font-size:12px;color:var(--red)">AGE GATE  0b10000000</span>
+      </div>
+      <div class="sv-row">
+        <span class="sv-label">ACTIVE</span>
+        <div class="sv-bits">
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+          <div class="bit on">█</div>
+        </div>
+        <span style="font-size:12px;color:var(--green)">FULL ACCESS  0b11111111</span>
+      </div>
+      <div class="sv-legend">
+        <span>b7=READ</span><span>b6=WRITE</span><span>b5=SHARE</span>
+        <span>b4=COMMENT</span><span>b3=DISCOVER</span><span>b2=NOTIFY</span>
+        <span>b1=MONETIZE</span><span>b0=LIVE</span>
+      </div>
+    </div>
+
+    <!-- Module tiers -->
+    <div class="tiers">
+      <div class="tier active">
+        <p class="tier-head">— Free / Preview</p>
+        <div class="module">
+          <span class="module-icon">🌐</span>
+          <span class="module-name">Landing Page</span>
+          <span class="badge-open">OPEN</span>
+        </div>
+        <div class="module">
+          <span class="module-icon">▶</span>
+          <span class="module-name">Preview Trailer</span>
+          <span class="badge-open">OPEN</span>
+        </div>
+        <div class="module">
+          <span class="module-icon">📖</span>
+          <span class="module-name">Overview</span>
+          <span class="badge-open">OPEN</span>
+        </div>
+      </div>
+
+      <div class="tier locked">
+        <p class="tier-head">— Paid · All Bits Set</p>
+        <div class="module">
+          <span class="module-icon">🧠</span>
+          <span class="module-name">AI Core</span>
+          <span class="badge-locked">LOCKED</span>
+        </div>
+        <div class="module">
+          <span class="module-icon">🎵</span>
+          <span class="module-name">Music Vault</span>
+          <span class="badge-locked">LOCKED</span>
+        </div>
+        <div class="module">
+          <span class="module-icon">🔮</span>
+          <span class="module-name">Mystery School</span>
+          <span class="badge-locked">LOCKED</span>
+        </div>
+        <div class="module">
+          <span class="module-icon">🛒</span>
+          <span class="module-name">Marketplace</span>
+          <span class="badge-locked">LOCKED</span>
+        </div>
+        <div class="module">
+          <span class="module-icon">🗺</span>
+          <span class="module-name">Node Map</span>
+          <span class="badge-locked">LOCKED</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-wrap">
+      <button id="unlock-btn">⚡ Unlock Cosmic Net — $29</button>
+      <p class="cta-sub">One-time payment · Instant access · Powered by Stripe</p>
+      <p id="error-msg">Something went wrong. Please try again.</p>
+    </div>
+
+    <div class="footer-bits">
+      ██░░░░░░  →  ████████  ·  STRIPE GATE  ·  NODE-0x01
+    </div>
+  </main>
+
+  <script>
+    const btn = document.getElementById('unlock-btn');
+    const err = document.getElementById('error-msg');
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Connecting…';
+      err.style.display = 'none';
+
+      try {
+        const res = await fetch('/create-checkout-session', { method: 'POST' });
+        const { url, error } = await res.json();
+
+        if (error) throw new Error(error);
+        window.location.href = url;
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Unlock Cosmic Net — $29';
+        err.textContent = e.message || 'Something went wrong. Please try again.';
+        err.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

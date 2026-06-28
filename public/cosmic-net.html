@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ANR Cosmic Net — Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #05000f;
+      --surface: #0c0020;
+      --card:    #100028;
+      --border:  #2a0060;
+      --purple:  #9400ff;
+      --glow:    #bf40ff;
+      --dim:     #5a3080;
+      --text:    #e8d8ff;
+      --muted:   #7a5fa0;
+      --green:   #00ff88;
+      --red:     #ff3366;
+      --yellow:  #ffcc00;
+      --mono:    'Courier New', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 56px 1fr;
+    }
+
+    @media (max-width: 640px) {
+      body { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+      #sidebar { display: none; }
+    }
+
+    /* ── topbar ── */
+    #topbar {
+      grid-column: 1 / -1;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+    }
+
+    #topbar h1 {
+      font-size: 14px;
+      letter-spacing: 3px;
+      background: linear-gradient(90deg, var(--glow), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+    }
+
+    .node-pill {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--green);
+      background: rgba(0,255,136,.08);
+      border: 1px solid rgba(0,255,136,.25);
+      border-radius: 20px;
+      padding: 4px 12px;
+    }
+
+    .pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .3; }
+    }
+
+    /* ── sidebar ── */
+    #sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--dim);
+      text-transform: uppercase;
+      padding: 8px 10px 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--muted);
+      transition: background .1s, color .1s;
+      border: none;
+      background: none;
+      text-align: left;
+      width: 100%;
+      font-family: var(--mono);
+    }
+
+    .nav-item:hover  { background: rgba(148,0,255,.12); color: var(--text); }
+    .nav-item.active { background: rgba(148,0,255,.2); color: var(--glow); }
+
+    .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+    /* ── state vector sidebar block ── */
+    .sv-sidebar {
+      margin-top: auto;
+      background: rgba(148,0,255,.07);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .sv-title { font-size: 9px; color: var(--dim); letter-spacing: 2px; margin-bottom: 8px; }
+
+    .sv-row-sm {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 10px;
+    }
+
+    .sv-row-sm .label { color: var(--muted); width: 40px; }
+
+    .bits-sm { display: flex; gap: 2px; }
+
+    .b {
+      width: 13px;
+      height: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      border-radius: 2px;
+    }
+
+    .b.on  { color: var(--glow); }
+    .b.off { color: #220040; }
+
+    /* ── main content ── */
+    #content {
+      padding: 32px;
+      overflow-y: auto;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .page-title {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .page-head {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+      background: linear-gradient(90deg, var(--text) 0%, var(--glow) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── module grid ── */
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .module-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      cursor: pointer;
+      transition: border-color .15s, transform .1s, box-shadow .15s;
+    }
+
+    .module-card:hover {
+      border-color: var(--purple);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 24px rgba(148,0,255,.2);
+    }
+
+    .module-card:active { transform: translateY(0); }
+
+    .module-emoji { font-size: 28px; margin-bottom: 12px; }
+    .module-name  { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .module-desc  { font-size: 11px; color: var(--muted); }
+
+    .module-status {
+      margin-top: 12px;
+      font-size: 10px;
+      color: var(--green);
+      letter-spacing: 1px;
+    }
+
+    /* ── Node Map page ── */
+    #map-canvas {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 100%;
+      height: 380px;
+    }
+
+    /* ── Bit viewer table ── */
+    .bit-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 16px;
+    }
+
+    .bit-table th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .bit-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+
+    .bit-table tr:hover td { background: rgba(148,0,255,.06); }
+
+    .chip {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .chip.open   { background: rgba(0,255,136,.1); color: var(--green); }
+    .chip.locked { background: rgba(255,51,102,.1); color: var(--red); }
+
+    /* ── gating overlay ── */
+    #gate {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      gap: 16px;
+    }
+
+    #gate h2 {
+      font-size: 1.2rem;
+      color: var(--red);
+      letter-spacing: 2px;
+    }
+
+    #gate p { font-size: 13px; color: var(--muted); }
+
+    #gate a {
+      color: var(--glow);
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    #gate a:hover { text-decoration: underline; }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- Access gate (shown until verification passes) -->
+  <div id="gate">
+    <div class="spinner"></div>
+    <p>Verifying node access…</p>
+  </div>
+
+  <!-- Top bar -->
+  <header id="topbar">
+    <h1>◈ ANR COSMIC NET</h1>
+    <div class="node-pill"><div class="pulse"></div>NODE ACTIVE</div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <p class="nav-label">Modules</p>
+    <button class="nav-item active" data-page="dashboard">
+      <span class="nav-icon">🌌</span> Dashboard
+    </button>
+    <button class="nav-item" data-page="ai-core">
+      <span class="nav-icon">🧠</span> AI Core
+    </button>
+    <button class="nav-item" data-page="music-vault">
+      <span class="nav-icon">🎵</span> Music Vault
+    </button>
+    <button class="nav-item" data-page="mystery-school">
+      <span class="nav-icon">🔮</span> Mystery School
+    </button>
+    <button class="nav-item" data-page="marketplace">
+      <span class="nav-icon">🛒</span> Marketplace
+    </button>
+    <button class="nav-item" data-page="node-map">
+      <span class="nav-icon">🗺</span> Node Map
+    </button>
+
+    <p class="nav-label" style="margin-top:16px">State</p>
+    <div class="sv-sidebar">
+      <p class="sv-title">STATE VECTOR</p>
+      <div class="sv-row-sm">
+        <span class="label">ACTIVE</span>
+        <div class="bits-sm">
+          <span class="b on">█</span><span class="b on">█</span>
+          <span class="b on">█</span><span class="b on">█</span>
+          <span class="b on">█</span><span class="b on">█</span>
+          <span class="b on">█</span><span class="b on">█</span>
+        </div>
+      </div>
+      <div class="sv-row-sm">
+        <span class="label">CODE</span>
+        <span style="color:var(--green);font-size:10px">0b11111111</span>
+      </div>
+      <div class="sv-row-sm">
+        <span class="label">MASK</span>
+        <span style="color:var(--muted);font-size:10px">FULL (255)</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main id="content">
+
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="page active">
+      <p class="page-title">Overview</p>
+      <h2 class="page-head">Welcome to the Cosmic Net</h2>
+      <div class="module-grid">
+        <div class="module-card" data-page="ai-core">
+          <div class="module-emoji">🧠</div>
+          <div class="module-name">AI Core</div>
+          <div class="module-desc">Language models, prompt chains, and reasoning tools</div>
+          <div class="module-status">█ ACTIVE · b6 WRITE open</div>
+        </div>
+        <div class="module-card" data-page="music-vault">
+          <div class="module-emoji">🎵</div>
+          <div class="module-name">Music Vault</div>
+          <div class="module-desc">Full catalog · stems · exclusive releases</div>
+          <div class="module-status">█ ACTIVE · b5 SHARE open</div>
+        </div>
+        <div class="module-card" data-page="mystery-school">
+          <div class="module-emoji">🔮</div>
+          <div class="module-name">Mystery School</div>
+          <div class="module-desc">Courses, frameworks, and esoteric tech theory</div>
+          <div class="module-status">█ ACTIVE · b4 COMMENT open</div>
+        </div>
+        <div class="module-card" data-page="marketplace">
+          <div class="module-emoji">🛒</div>
+          <div class="module-name">Marketplace</div>
+          <div class="module-desc">Templates, packs, and creator tools</div>
+          <div class="module-status">█ ACTIVE · b1 MONETIZE open</div>
+        </div>
+        <div class="module-card" data-page="node-map">
+          <div class="module-emoji">🗺</div>
+          <div class="module-name">Node Map</div>
+          <div class="module-desc">Live graph of all cosmic network nodes</div>
+          <div class="module-status">█ ACTIVE · b3 DISCOVER open</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Core -->
+    <div id="page-ai-core" class="page">
+      <p class="page-title">Module / AI</p>
+      <h2 class="page-head">AI Core</h2>
+      <table class="bit-table">
+        <thead><tr>
+          <th>BIT</th><th>PERMISSION</th><th>VISUAL</th><th>STATUS</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>b7</td><td>READ</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b6</td><td>WRITE</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b5</td><td>SHARE</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b4</td><td>COMMENT</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b3</td><td>DISCOVER</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b2</td><td>NOTIFY</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b1</td><td>MONETIZE</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+          <tr><td>b0</td><td>LIVE</td><td style="color:#bf40ff">█</td><td><span class="chip open">OPEN</span></td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:24px;font-size:12px;color:var(--muted)">
+        State vector: <span style="color:var(--green)">████████  0b11111111  (255)</span><br>
+        Access mode: FULL — all 8 permission bits set.
+      </p>
+    </div>
+
+    <!-- Music Vault -->
+    <div id="page-music-vault" class="page">
+      <p class="page-title">Module / Audio</p>
+      <h2 class="page-head">Music Vault</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:24px">
+        Full catalog unlocked. All streams, stems, and exclusive drops accessible.
+      </p>
+      <div class="module-grid">
+        <div class="module-card"><div class="module-emoji">🎙</div><div class="module-name">Releases</div><div class="module-desc">Full discography</div></div>
+        <div class="module-card"><div class="module-emoji">🎚</div><div class="module-name">Stems</div><div class="module-desc">Raw layers for remixing</div></div>
+        <div class="module-card"><div class="module-emoji">📡</div><div class="module-name">Live Sessions</div><div class="module-desc">Exclusive recordings</div></div>
+        <div class="module-card"><div class="module-emoji">🌊</div><div class="module-name">Unreleased</div><div class="module-desc">Vault-only drops</div></div>
+      </div>
+    </div>
+
+    <!-- Mystery School -->
+    <div id="page-mystery-school" class="page">
+      <p class="page-title">Module / Knowledge</p>
+      <h2 class="page-head">Mystery School</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:24px">
+        Courses, frameworks, and theory. All modules unlocked.
+      </p>
+      <div class="module-grid">
+        <div class="module-card"><div class="module-emoji">🔬</div><div class="module-name">Binary Logic</div><div class="module-desc">The cosmic net foundation</div></div>
+        <div class="module-card"><div class="module-emoji">🧬</div><div class="module-name">Node Theory</div><div class="module-desc">Network topology deep-dive</div></div>
+        <div class="module-card"><div class="module-emoji">⚡</div><div class="module-name">Restriction Patterns</div><div class="module-desc">The 6 major gates</div></div>
+        <div class="module-card"><div class="module-emoji">🌀</div><div class="module-name">State Machine</div><div class="module-desc">Transitions and circuits</div></div>
+      </div>
+    </div>
+
+    <!-- Marketplace -->
+    <div id="page-marketplace" class="page">
+      <p class="page-title">Module / Commerce</p>
+      <h2 class="page-head">Marketplace</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:24px">
+        Creator tools, templates, and digital goods. MONETIZE bit open.
+      </p>
+      <div class="module-grid">
+        <div class="module-card"><div class="module-emoji">📦</div><div class="module-name">Sample Packs</div><div class="module-desc">Production-ready kits</div></div>
+        <div class="module-card"><div class="module-emoji">🎨</div><div class="module-name">Templates</div><div class="module-desc">Brand & design assets</div></div>
+        <div class="module-card"><div class="module-emoji">🤖</div><div class="module-name">AI Prompts</div><div class="module-desc">Curated prompt libraries</div></div>
+        <div class="module-card"><div class="module-emoji">📜</div><div class="module-name">Licensing</div><div class="module-desc">Usage rights & deals</div></div>
+      </div>
+    </div>
+
+    <!-- Node Map -->
+    <div id="page-node-map" class="page">
+      <p class="page-title">Module / Graph</p>
+      <h2 class="page-head">Node Map</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        Live graph — DISCOVER bit open. Nodes pulse at their current state vector.
+      </p>
+      <canvas id="map-canvas"></canvas>
+    </div>
+
+  </main>
+
+  <script>
+    // ── Access gate ───────────────────────────────────────────────────────────
+    async function checkAccess() {
+      const params = new URLSearchParams(window.location.search);
+      const token  = params.get('access');
+      const gate   = document.getElementById('gate');
+
+      if (!token) {
+        showBlocked(gate);
+        return;
+      }
+
+      try {
+        const res  = await fetch(`/verify-access?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+
+        if (data.active) {
+          gate.style.display = 'none';
+        } else {
+          showBlocked(gate);
+        }
+      } catch {
+        showBlocked(gate);
+      }
+    }
+
+    function showBlocked(gate) {
+      gate.innerHTML = `
+        <h2>◈ ACCESS DENIED</h2>
+        <p>No valid payment session found.</p>
+        <p>State vector: <span style="color:#ff3366">░░░░░░░░  0b00000000</span></p>
+        <a href="/">← Return to Cosmic Net landing</a>
+      `;
+    }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    function navigate(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+      const page = document.getElementById(`page-${pageId}`);
+      if (page) page.classList.add('active');
+
+      document.querySelectorAll(`[data-page="${pageId}"]`).forEach(el => {
+        if (el.classList.contains('nav-item')) el.classList.add('active');
+      });
+
+      if (pageId === 'node-map') drawNodeMap();
+    }
+
+    document.querySelectorAll('[data-page]').forEach(el => {
+      el.addEventListener('click', () => navigate(el.dataset.page));
+    });
+
+    // ── Node Map canvas ───────────────────────────────────────────────────────
+    function drawNodeMap() {
+      const canvas = document.getElementById('map-canvas');
+      if (!canvas) return;
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+
+      const nodes = [
+        { id: 'alpha',   x: .5,  y: .5,  state: 0b11111111, label: 'α' },
+        { id: 'beta',    x: .28, y: .3,  state: 0b11010011, label: 'β' },
+        { id: 'gamma',   x: .72, y: .28, state: 0b11111111, label: 'γ' },
+        { id: 'delta',   x: .75, y: .65, state: 0b11110111, label: 'δ' },
+        { id: 'epsilon', x: .25, y: .72, state: 0b10001000, label: 'ε' },
+        { id: 'zeta',    x: .12, y: .45, state: 0b11111110, label: 'ζ' },
+      ];
+
+      const edges = [
+        ['alpha','beta'], ['alpha','gamma'], ['alpha','delta'],
+        ['beta','epsilon'], ['beta','zeta'], ['gamma','delta'],
+      ];
+
+      const px = n => n.x * W;
+      const py = n => n.y * H;
+
+      const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+
+      // Draw edges
+      ctx.strokeStyle = 'rgba(148,0,255,.25)';
+      ctx.lineWidth = 1;
+      edges.forEach(([a, b]) => {
+        const na = nodeMap[a], nb = nodeMap[b];
+        ctx.beginPath();
+        ctx.moveTo(px(na), py(na));
+        ctx.lineTo(px(nb), py(nb));
+        ctx.stroke();
+      });
+
+      // Draw nodes
+      nodes.forEach(n => {
+        const x = px(n), y = py(n), r = 22;
+        const bits = n.state.toString(2).padStart(8, '0');
+        const active = bits.split('').filter(b => b === '1').length / 8;
+
+        // Glow
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 2.5);
+        const alpha = 0.15 + active * 0.25;
+        grad.addColorStop(0, `rgba(148,0,255,${alpha})`);
+        grad.addColorStop(1, 'rgba(148,0,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Circle
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#100028';
+        ctx.fill();
+        ctx.strokeStyle = active === 1 ? '#bf40ff' : active > .5 ? '#7700ff' : '#ff3366';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#e8d8ff';
+        ctx.font = 'bold 14px Courier New';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(n.label, x, y);
+
+        // State bits below
+        ctx.font = '8px Courier New';
+        ctx.fillStyle = '#5a3080';
+        const vis = bits.split('').map(b => b === '1' ? '█' : '░').join('');
+        ctx.fillText(vis, x, y + r + 10);
+      });
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    checkAccess();
+  </script>
+</body>
+</html>
